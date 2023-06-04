@@ -1,0 +1,55 @@
+% Description of the OSDL-Space OTP library application, typically used by
+% rebar3.
+
+% Note: if this file is named osdl_space.app, it is a *generated* file, whose
+% real source is conf/osdl_space.app.src, from which
+% _build/lib/osdl_space/ebin/osdl_space.app is obtained and copied to
+% ebin/osdl_space.app; finally src/osdl_space.app.src is a mere symlink to this
+% last file, so we have:
+%
+% ./conf/osdl_space.app.src [only real source]
+% ./_build/lib/osdl_space/ebin/osdl_space.app
+% ./ebin/osdl_space.app
+% ./src/osdl_space.app.src -> ../ebin/osdl_space.app
+%
+% For more information see the Ceylan-Myriad 'rebar3-create-app-file' make
+% target and its associated comments.
+
+% See also:
+% - http://erlang.org/doc/man/app.html
+% - https://learnyousomeerlang.com/building-otp-applications
+
+
+{application, osdl_space,
+ [{description, "OSDL-Space, an Erlang library providing higher-level primitives to manage 3D spaces (see http://osdl-space.esperide.org)"},
+  {vsn, "VERSION_FOR_REBAR"},
+  {registered, []},
+
+  % Regarding:
+  %  - Traces, see http://traces.esperide.org/traces.html#otp
+  %  - WOOPER, see http://wooper.esperide.org/wooper.html#otp
+  %  - Myriad, see http://myriad.esperide.org/myriad.html#otp
+  %
+  % myriad is a dependency of wooper, which is itself a dependency of traces and
+  % as such may not be listed here, however we stay conservative;
+  %
+  {applications, [kernel, stdlib, sasl, myriad, wooper, traces]},
+  {env,[]},
+
+  % Flat hierarchy in ebin here:
+  {modules, [MODULES_FOR_REBAR]},
+
+  {licenses, ["OSDL-Space is licensed by its author (Olivier Boudeville) under the GNU Lesser General Public License (LGPL), version 3.0 or later"]},
+
+  % Active application:
+  %
+  % (no specific relevant startup argument to specify here)
+  %
+  {mod, {osdl_space_app, []}},
+
+  {links, [ {"Official website", "http://osdl-space.esperide.org" },
+			{"Github", "https://github.com/Olivier-Boudeville/OSDL-Space"} ]}
+
+  %{exclude_files, []}
+
+ ]}.
