@@ -48,13 +48,18 @@
 % (note that we do not introduce new attributes, we override their description)
 %
 -define( class_attributes, [
-							
-	{ origin, point3(),
-	  "the origin of this referential, expressed in its parent one, if any, "
-	  "otherwise in absolute terms" },
+
+	% Finally directly stored in its transition matrix:
+	%{ origin, point3(),
+	%  "the origin of this referential, expressed in its parent one, if any, "
+	%  "otherwise in absolute terms" },
 
 	{ parent, maybe( any_referential3() ),
-	  "the parent referential (if any; and of any type) of this one" } ] ).
+	  "the parent referential (if any; and of any type) of this one" },
+
+	{ to_parent, transition_matrix4(),
+	  "the transition matrix from this referential to its parent; "
+	  "if this referential is absolute, then it is identity_4" } ] ).
 
 
 
@@ -101,18 +106,164 @@
 
 -type point3() :: point3:point3().
 
+-type vector3() :: vector3:vector3().
+-type unit_vector3() :: vector3:unit_vector3().
+
+%-type transition_matrix4() :: matrix4:transition_matrix4().
+
 
 
 % @doc Constructs an absolute 3D referential centered at the specified origin.
 -spec construct( wooper:state(), point3() ) -> wooper:state().
 construct( State, Origin ) ->
-	class_SpaceReferential:construct( State, Origin ).
+	% Not class_SpaceReferential:construct(State, Origin), as no matrix to store
+	% it yet: class_SpaceReferential:construct(State, Origin),
+
+	NoParentState = class_SpaceReferential:construct( State ),
+	ParentTransMat4 = matrix4:translation( Origin ),
+
+	setAttribute( NoParentState, to_parent, ParentTransMat4 ).
 
 
+
+% @doc Constructs a 3D referential centered at the specified origin relatively
+% to any specified one.
+%
 -spec construct( wooper:state(), point3(), maybe( any_referential3() ) ) ->
 						wooper:state().
-construct( State, Origin, ParentReferential ) ->
-	class_SpaceReferential:construct( State, Origin, ParentReferential ).
+construct( State, Origin, MaybeParentReferential ) ->
+	NoParentState = class_SpaceReferential:construct( State ),
+
+	ParentTransMat4 = matrix4:translation( Origin ),
+
+	setAttributes( NoParentState, [ { parent, MaybeParentReferential },
+									{ to_parent, ParentTransMat4 } ] ).
+
+
+
+% @doc Constructs a 3D referential centered at the specified origin relatively
+% to the specified one, with its corresponding axes, which are supposed to be
+% already unit vectors.
+%
+-spec construct( wooper:state(), point3(), unit_vector3(), unit_vector3(),
+				 unit_vector3(), maybe( any_referential3() ) ) ->
+						wooper:state().
+construct( State, Origin, X, Y, Z, MaybeParentReferential ) ->
+
+	NoParentState = class_SpaceReferential:construct( State ),
+
+	cond_utils:if_defined( osdl_space_debug_referentials,
+		begin
+			point3:check( Origin ),
+			vector3:check_unit_vectors( [ X, Y, Z ] ),
+			vector3:check_orthogonal( X, Y ),
+			vector3:check_orthogonal( X, Z ),
+			vector3:check_orthogonal( Y, Z ),
+			check_maybe_referential( MaybeParentReferential )
+		end ),
+
+	% From this referential to the parent one, the origin and axes of this
+	% referential being expressed in its parent one:
+	%
+	ParentTransMat4 = matrix4:transition( Origin, X, Y, Z ),
+
+	setAttributes( NoParentState, [ { parent, MaybeParentReferential },
+									{ to_parent, ParentTransMat4 } ] ).
+
+
+
+% @doc Constructs a 3D referential centered at the specified origin relatively
+% to the specified one, with the corresponding two X and Y axes, which are not
+% necessarily already unit vectors. The third axis, Z, will be deduced from X
+% and Y.
+%
+-spec construct( wooper:state(), point3(), vector3(), vector3(),
+				 maybe( any_referential3() ) ) -> wooper:state().
+construct( State, Origin, X, Y, MaybeParentReferential ) ->
+
+	NoParentState = class_SpaceReferential:construct( State ),
+
+	cond_utils:if_defined( osdl_space_debug_referentials,
+		begin
+			point3:check( Origin ),
+			vector3:check_vectors( [ X, Y ] ),
+			check_maybe_referential( MaybeParentReferential )
+		end ),
+
+	Xunit = vector3:normalise( X ),
+	Yunit = vector3:normalise( Y ),
+	Zunit = vector3:cross_product( X, Y ),
+
+	% From this referential to the parent one, the origin and axes of this
+	% referential being expressed in its parent one:
+	%
+	ParentTransMat4 = matrix4:transition( Origin, Xunit, Yunit, Zunit ),
+
+	setAttributes( NoParentState, [ { parent, MaybeParentReferential },
+									{ to_parent, ParentTransMat4 } ] ).
+
+
+% Request section.
+
+
+% @doc Returns the origin of this referential relatively to its parent,
+% otherwise absolutely.
+%
+-spec getOrigin( wooper:state() ) -> const_request_return( point3() ).
+getOrigin( State ) ->
+	ParentTransMat4 = ?getAttr(to_parent),
+	wooper:const_return_result( matrix4:get_column_o( ParentTransMat4 ) ).
+
+
+
+% Oneway section.
+
+
+% @doc Sets the origin of this referential, relatively to its parent otherwise
+% absolutely.
+%
+-spec setOrigin( wooper:state(), point3() ) -> oneway_return().
+setOrigin( State, Origin ) ->
+	NewParentTransMat4 = matrix4:set_column_o( ?getAttr(to_parent), Origin ),
+	NewState = setAttribute( State, to_parent, NewParentTransMat4 ),
+	wooper:return_state( NewState ).
+
+
+
+
+% Static section.
+
+
+
+% @doc Checks (with necessary yet not sufficient conditions) that the specified
+% term is a (3D) referential; if yes, returns it, otherwise throws an exception.
+%
+-spec check_referential( term() ) -> static_return( any_referential3() ).
+check_referential( RefPassivInstState=#state_holder{} ) ->
+	wooper:return_static(
+		wooper:check_instance_of( _Classname=?MODULE, RefPassivInstState ) );
+
+check_referential( RefPid ) when is_pid( RefPid ) ->
+	wooper:return_static( RefPid );
+
+check_referential( RefId ) when is_integer( RefId ) ->
+	wooper:return_static( RefId );
+
+check_referential( Other ) ->
+	throw( { invalid_referential, Other } ).
+
+
+
+% @doc Checks (with necessary yet not sufficient conditions) that the specified
+% term is a maybe - (3D) referential; if yes, returns it, otherwise throws an
+% exception.
+%
+-spec check_maybe_referential( term() ) -> static_return( any_referential3() ).
+check_maybe_referential( MaybeRef=undefined ) ->
+	wooper:return_static( MaybeRef );
+
+check_maybe_referential( Ref ) ->
+	wooper:return_static( check_referential( Ref ) ).
 
 
 

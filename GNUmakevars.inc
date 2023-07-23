@@ -44,11 +44,11 @@ endif
 # conditional compilation primitives (see cond_utils for their management):
 
 # Topics covered by flags:
-#  - osdl_space_debug_xx: regarding xx
-##
+#  - referentials: to secure how space referentials are used
+#
 # Defining debug flags (at least the most verbose are by default commented-out):
 ifeq ($(ENABLE_DEBUG),true)
-	#OSDL_SPACE_DEBUG_FLAGS += -Dosdl_space_debug_xx
+	OSDL_SPACE_DEBUG_FLAGS += -Dosdl_space_debug_referentials
 endif
 
 # Defining check flags:

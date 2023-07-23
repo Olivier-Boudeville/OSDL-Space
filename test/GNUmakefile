@@ -1,9 +1,14 @@
 OSDL_SPACE_TOP = ..
 
+.PHONY: run
+
 MODULES_DIRS =
 
-clean:
-	-@/bin/rm -f $(PROJECT_NAME_FOR_REBAR).app.src
+
+all:
+
+run:
+	@$(MAKE) -s controller_run
 
 
 include $(OSDL_SPACE_TOP)/GNUmakesettings.inc

@@ -54,9 +54,12 @@
 % Describes the class-specific attributes:
 -define( class_attributes, [
 
-	{ origin, point(),
-	  "the origin of this referential, expressed in its parent one, if any, "
-	  "otherwise in absolute terms" },
+	% Finally not defined specifically: each child class is to store such
+	% information by itself, typically in a transition matrix of its own.
+	%
+	%{ origin, point(),
+	%  "the origin of this referential, expressed in its parent one, if any, "
+	%  "otherwise in absolute terms" },
 
 	{ parent, maybe( any_referential() ),
 	  "the parent referential (if any; and of any type) of this one" } ] ).
@@ -108,20 +111,94 @@
 
 
 
+% @doc Constructs a blank referential, with neither an origin nor a parent
+% defined.
+%
+construct( State ) ->
+	State.
+
+
+%-spec construct( wooper:state(), point() ) -> wooper:state().
+% Not appropriate as construct/3 is not either:
+%construct( State, Origin ) ->
+%	construct( State, Origin, _ParentReferential=undefined ).
+
+
 % @doc Constructs an absolute referential centered at the specified origin.
--spec construct( wooper:state(), point() ) -> wooper:state().
-construct( State, Origin ) ->
-	construct( State, Origin, _ParentReferential=undefined ).
+%-spec construct( wooper:state(), point() ) -> wooper:state().
+% Not appropriate as construct/3 is not either:
+%construct( State, Origin ) ->
+%	construct( State, Origin, _ParentReferential=undefined ).
 
 
 % @doc Constructs a referential relative to the specified parent one, and
 % centered at the specified origin of it.
 %
--spec construct( wooper:state(), point(), maybe( any_referential() ) ) ->
-						wooper:state().
-construct( State, Origin, MaybeParentReferential ) ->
-	setAttributes( State, [ { origin, Origin },
-							{ parent, MaybeParentReferential } ] ).
+%-spec construct( wooper:state(), point(), maybe( any_referential() ) ) ->
+%						wooper:state().
+% Not appropriate: cannot access the data of child class at this point:
+%construct( State, Origin, MaybeParentReferential ) ->
+%	OrgState = executeOneway( State, setOrigin, Origin ),
+%	setAttribute( OrgState, parent, MaybeParentReferential ).
+
+
+
+% Request section.
+
+% @doc Returns the origin of this referential relatively to its parent,
+% otherwise absolutely.
+%
+-spec getOrigin( wooper:state() ) -> const_request_return( point() ).
+getOrigin( _State ) ->
+	throw( not_overridden ).
+
+
+
+
+% Oneway section.
+
+% @doc Sets the origin of this referential relatively to its parent, otherwise
+% absolutely.
+%
+-spec setOrigin( wooper:state(), point() ) -> oneway_return().
+setOrigin( _State, _Origin ) ->
+	throw( not_overridden ).
+
+
+
+% Static section.
+
+
+
+% @doc Checks (with necessary yet not sufficient conditions) that the specified
+% term is a referential; if yes, returns it, otherwise throws an exception.
+%
+-spec check_referential( term() ) -> static_return( any_referential() ).
+check_referential( RefPassivInstState=#state_holder{} ) ->
+	wooper:return_static(
+		wooper:check_instance_of( _Classname=?MODULE, RefPassivInstState ) );
+
+check_referential( RefPid ) when is_pid( RefPid ) ->
+	wooper:return_static( RefPid );
+
+check_referential( RefId ) when is_integer( RefId ) ->
+	wooper:return_static( RefId );
+
+check_referential( Other ) ->
+	throw( { invalid_referential, Other } ).
+
+
+
+% @doc Checks (with necessary yet not sufficient conditions) that the specified
+% term is a maybe-referential; if yes, returns it, otherwise throws an
+% exception.
+%
+-spec check_maybe_referential( term() ) -> static_return( any_referential() ).
+check_maybe_referential( MaybeRef=undefined ) ->
+	wooper:return_static( MaybeRef );
+
+check_maybe_referential( Ref ) ->
+	wooper:return_static( check_referential( Ref ) ).
 
 
 
