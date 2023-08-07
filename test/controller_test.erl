@@ -55,10 +55,17 @@
 
 -type message() :: basic_utils:message().
 
-
 -type coordinate() :: linear:coordinate().
 
 -type integer_point2() :: point2:integer_point2().
+
+-type frame() :: gui:frame().
+-type button() :: gui:button().
+-type status_bar() :: gui:status_bar().
+
+
+-type gl_canvas() :: gui_opengl:gl_canvas().
+-type gl_context() :: gui_opengl:gl_context().
 
 -type user_event_registry() :: gui_event:user_event_registry().
 
@@ -70,14 +77,31 @@
 % GUI section.
 
 
-% State of the program, passed between event handlers.
--record( gui_state, { main_frame,
-					  quit_button,
-					  status_bar,
-					  canvas,
-					  screen :: screen(),
-					  user_event_registry :: user_event_registry() } ).
+% Application-specific GUI information, to be stored in the app_specific_info
+% field of the MyriadGUI app_gui_state record, and to be passed between event
+% drivers.
+%
+-record( controller_gui_info, {
 
+	% The main frame of this test:
+	main_frame :: frame(),
+
+	% To quit thanks to a button:
+	quit_button :: button(),
+
+	% Bottom status bar:
+	status_bar :: status_bar(),
+
+	% Information regarding the displayed screen:
+	screen :: screen() } ).
+
+-type controller_gui_info() :: #controller_gui_info{}.
+% Application-specific GUI information, to be stored in the app_specific_info
+% field of the app_gui_state record, and to be passed between event drivers.
+
+
+% Silencing:
+-export_type([ controller_gui_info/0 ]).
 
 
 % The left part of the frame shows the canvas (viewports), while the right one
@@ -103,9 +127,7 @@ start() ->
 
 		undefined ->
 			test_facilities:display( "No proper OpenGL support detected on "
-				"host (no GLX visual reported), controller cannot be run." ),
-		% FIXME tmp:
-					run_actual_test();
+				"host (no GLX visual reported), controller cannot be run." );
 
 		GlxInfoStr ->
 			case gui_opengl:is_hardware_accelerated( GlxInfoStr ) of
@@ -129,7 +151,8 @@ start() ->
 
 run_actual_test() ->
 
-	gui:start(),
+	test_facilities:display( "This test will display a frame "
+		"comprising a main 3D view, and controls on the right." ),
 
 	% May be useful:
 	%observer:start(),
@@ -141,6 +164,11 @@ run_actual_test() ->
 	%   _MonitoredProcessDesc="MyriadGUI test main loop" ),
 
 	trace_utils:notice( "Running the OSDL-Space controller test." ),
+
+	gui:start(),
+
+	% Could be batched (see gui:batch/1) to be more effective.
+	%InitialGUIState = gui:batch( fun() -> init_test_gui() end ),
 
 	% Starts as 1/4 of the full theoretical screen size:
 	FrameSize =
@@ -154,20 +182,47 @@ run_actual_test() ->
 	% Create a table abstracting-out the various ways for the user to generate
 	% events (e.g. based on remapped keys, mouse actions, etc.):
 	%
-	UsrEvReg = gui_event:create_user_event_registry( [
+	InitAppGUIState = gui_event:create_app_gui_state( [
 		% Trigger the following app-level event...
 		{ quit_requested,
 		  % ... whenever any of these user-level events happen:
 		  [ { button_clicked, QuitButtonId },
-				   { keycode_pressed, ?MYR_K_q },
+			{ keycode_pressed, ?MYR_K_q },
 			{ scancode_pressed, ?default_quit_scan_code },
-			window_closed ] } ] ),
+			window_closed ] } ], _UseOpenGL=true ),
+
+	% Overrides this default with our driver:
+	ShowAppGUIState = gui_event:set_event_driver( onShown, onShown_driver/2,
+												  InitAppGUIState ),
 
 	MainFrame = gui:create_frame( _Title="OSDL-Space Controller",
 		_FramePos=auto, FrameSize, _FrameStyle=default, _Id=main_frame_id,
 		_MaybeParent=undefined ),
 
-	gui:subscribe_to_events( { onWindowClosed, MainFrame } ),
+	% This test may request additionally an OpenGL debug context:
+	%GLAttrs = gui_opengl:get_default_canvas_attributes(),
+	GLAttrs = [ debug_context | gui_opengl:get_default_canvas_attributes() ],
+
+	GLCanvas = gui_opengl:create_canvas( _Parent=MainFrame,
+		_CanvasAttrs=[ { gl_attributes, GLAttrs } ] ),
+
+	% Created, yet not bound yet (must wait for the main frame to be shown) (so
+	% GL context cannot be set as current yet):
+	%
+	GLContext = gui_opengl:create_context( GLCanvas ),
+
+	GLAppGUIState = ShowAppGUIState#app_gui_state{
+		opengl_state={ GLCanvas, GLCanvas } },
+
+
+	gui:subscribe_to_events( { [ onResized, onShown, onWindowClosed ],
+							   MainFrame } ),
+
+	% Needed, otherwise if that frame is moved out of the screen or if another
+	% windows overlaps, the OpenGL canvas gets garbled and thus must be redrawn:
+	% (onResized a priori not needed)
+	%
+	gui:subscribe_to_events( { onRepaintNeeded, GLCanvas } ),
 
 	StatusBar = gui:create_status_bar( MainFrame ),
 
@@ -223,27 +278,32 @@ run_actual_test() ->
 
 	% Would prevent the panel to receive key presses:
 	%RenderBoxSizer = gui:create_sizer_with_labelled_box( vertical, MainPanel,
-	%													 "World rendering" ),
+	%                                                     "World rendering" ),
 
-	%Canvas = gui:create_canvas( MainPanel ),
+	% Same:
+	%RenderBoxSizer = gui:create_sizer_with_box( vertical, MainPanel ),
+
+	% Only one preserving key presses:
+	%RenderBoxSizer = gui:create_sizer( vertical ),
+
+	%gui:subscribe_to_events( { onKeyPressed, Canvas } ),
 
 	%gui:set_background_color( Canvas, red ),
 
 	%gui:clear( Canvas ),
 
-	%gui:subscribe_to_events( { [ onRepaintNeeded, onResized ], Canvas } ),
-
-	%gui:add_to_sizer( RenderBoxSizer, Canvas,
-	%				  [ { proportion, 1 }, expand_fully ] ),
+	gui:add_to_sizer( RenderBoxSizer, GLCanvas,
+					  [ { proportion, 1 }, expand_fully ] ),
 
 	%gui:set_tooltip( Canvas, "Rendering of OSDL-Space." ),
 
-	%gui:set_sizer( MainPanel, RenderBoxSizer ),
+	gui:set_sizer( MainPanel, RenderBoxSizer ),
 
 	gui:set_sizer( MainFrame, MainSizer ),
 
-	% Focus needed to receive events:
+	% Focus needed to receive events; both components work:
 	gui:set_focus( MainPanel ),
+	%gui:set_focus( GLCanvas ),
 
 	% Sets the GUI to visible:
 	gui:show( MainFrame ),
@@ -252,43 +312,135 @@ run_actual_test() ->
 	Screen = #screen{ center={ get_main_window_width() / 3 - 550,
 							   get_main_window_height() / 2 } },
 
+	InitGUIInfo = #controller_gui_info{ main_frame=MainFrame,
+										quit_button=QuitButton,
+										status_bar=StatusBar,
+										screen=Screen },
 
-	InitialState = #gui_state{ main_frame=MainFrame,
-							   quit_button=QuitButton,
-							   status_bar=StatusBar,
-							   %canvas=Canvas,
-							   screen=Screen,
-							   user_event_registry=UsrEvReg },
+	InfoAppGUIState =
+		GLAppGUIState#app_gui_state{ app_specific_info=InitGUIInfo },
+
 
 	% Wanting to catch up with the solvers:
 	erlang:process_flag( priority, _Level=high ),
 
 	gui:push_status_text( "Initialised.", StatusBar ),
 
-	gui_main_loop( InitialState ).
+	% OpenGL will be initialised only when the corresponding frame will be ready
+	% (that is once first reported as resized):
+	%
+	gui_main_loop( InfoAppGUIState ).
+
 
 
 
 % @doc The main loop of this test, driven by the receiving of MyriadGUI
 % messages, whose events are converted to application ones.
 %
-gui_main_loop( GUIState=#gui_state{ user_event_registry=UsrEvReg } ) ->
+% OpenGL will be initialised only when the corresponding frame will be ready
+% (that is once first reported as resized).
+%
+-spec gui_main_loop( app_gui_state() ) -> no_return().
+gui_main_loop( AppGUIState ) ->
 
 	% Triggered whenever a user event is received and can be promoted to an
 	% application event; blocking version:
 	%
-	case gui_event:get_application_event( UsrEvReg ) of
+	case gui_event:get_application_event( AppGUIState ) of
 
-		{ quit_requested, _BaseEvent } ->
-			on_quit( GUIState );
+		{ { quit_requested, _BaseEvent }, QuitAppGUIState } ->
+			on_quit( QuitAppGUIState );
 
-		OtherAppEvent ->
+		{ { OtherAppEvent, _BaseEvent }, OtherAppGUIState } ->
 			trace_utils:warning_fmt( "Unhandled (hence ignored) application "
-				"event: ~ts.",
+				"event by this controller:~n~ts.",
 				[ gui_event:application_event_to_string( OtherAppEvent ) ] ),
-			gui_main_loop( GUIState )
+			gui_main_loop( OtherAppGUIState )
+
+		% Extra safety:
+		OtherAppEventReturn ->
+			trace_utils:error_fmt( "Unexpected (hence ignored) application "
+				"event return received by this controller (abnormal):~n~p.",
+				[ OtherAppEventReturn ] ),
+			throw( { invalid_app_event_return, OtherAppEventReturn } )
 
 	end.
+
+
+
+% @doc Application-specified driver overriding default_onShown_driver/2.
+%
+% The most suitable first location to initialise OpenGL, as making a GL context
+% current requires a shown window.
+%
+onShown_driver( _Elements=[ Frame, FrameId, EventContext ],
+				AppGUIState=#app_gui_state{ use_opengl=false } ) ->
+
+	trace_utils:debug_fmt( "Controller driver: parent window (main frame) "
+		"just shown (initial size of ~w).", [ gui:get_size( Frame ) ] ),
+
+	% Done once for all:
+	InitAppGUIState = initialise_opengl( AppGUIState ),
+
+	% Optional yet better:
+	gui:unsubscribe_from_events( { onShown, Frame } ),
+
+
+
+
+% @doc Sets up OpenGL, once for all, once a proper OpenGL context is available.
+-spec initialise_opengl( app_gui_state() ) -> app_gui_state().
+initialise_opengl( GUIState=#my_gui_state{ canvas=GLCanvas,
+										   context=GLContext,
+										   % Check:
+										   opengl_initialised=false } ) ->
+
+	% Initial size of canvas is typically 20x20 pixels:
+	trace_utils:debug_fmt( "Initialising OpenGL (whereas canvas is of initial "
+						   "size ~w).", [ gui:get_size( GLCanvas ) ] ),
+
+	% So done only once:
+	gui_opengl:set_context_on_shown( GLCanvas, GLContext ),
+
+	test_opengl_debug_context(),
+
+	%Exts = gui_opengl:get_supported_extensions(),
+	%trace_utils:info_fmt( "~B OpenGL extensions supported: ~ts",
+	%   [ length( Exts ), text_utils:atoms_to_listed_string( Exts ) ] ),
+
+	% These settings will not change afterwards here (set once for all):
+
+	% Clears in black:
+	gl:clearColor( 0.0, 0.0, 0.0, 0.0 ),
+
+	% Draws in white:
+	gl:color3f( 1.0, 1.0, 1.0 ),
+
+	gl:matrixMode( ?GL_PROJECTION ),
+	gl:loadIdentity(),
+
+	% Multiplies the current modelview matrix by an orthographic matrix, a
+	% perspective matrix that produces a parallel projection based on 6 clipping
+	% planes, implementing the MyriadGUI 2D conventions.
+	%
+	% Here coordinates are normalised in [0.0,1.0] and as such are
+	% definition-independent (resizing the frame and then the viewport will not
+	% affect them).
+	%
+	% Like glu:ortho2D/4:
+	%
+	gl:ortho( _Left=0.0, _Right=1.0, _Bottom=1.0, _Top=0.0, _Near=-1.0,
+			  _Far=1.0 ),
+
+	%trace_utils:debug_fmt( "Managing a resize of the main frame to ~w.",
+	%                       [ gui:get_size( MainFrame ) ] ),
+
+	InitGUIState = GUIState#my_gui_state{ opengl_initialised=true },
+
+	% As the initial onResized was triggered whereas no OpenGL state was
+	% already available:
+	%
+	on_main_frame_resized( InitGUIState ).
 
 
 
