@@ -313,12 +313,18 @@ run_controller() ->
 	% events (e.g. based on remapped keys, mouse actions, etc.):
 	%
 	InitAppGUIState = gui_event:create_app_gui_state( [
+
+		{ help_requested, [ { keycode_pressed, ?default_help_scancode } ] },
+
 		% Trigger the following app-level event...
+		{ toggle_fullscreen,
+		  [ { keycode_pressed, ?default_fullscreen_keycode } ] },
+
 		{ quit_requested,
 		  % ... whenever any of these user-level events happen:
 		  [ { button_clicked, QuitButtonId },
-			{ keycode_pressed, ?MYR_K_q },
-			{ scancode_pressed, ?default_quit_scan_code },
+			{ keycode_pressed,  ?default_quit_keycode },
+			{ scancode_pressed, ?default_quit_scancode },
 			window_closed ] } ], GLBaseInfo, CtlrSpecificGUIInfo ),
 
 	% Overrides the default drivers with ours:
@@ -348,9 +354,6 @@ run_controller() ->
 % (that is once first reported as resized).
 %
 -spec gui_main_loop( app_gui_state() ) -> no_return().
-gui_main_loop( ok ) ->
-	throw( a1 );
-
 gui_main_loop( AppGUIState ) ->
 
 	% Triggered whenever a user event is received and can be promoted to an
@@ -358,24 +361,40 @@ gui_main_loop( AppGUIState ) ->
 	%
 	case gui_event:get_application_event( AppGUIState ) of
 
-		{ { quit_requested, _BaseEvent }, QuitAppGUIState } ->
-			on_quit( QuitAppGUIState );
+		{ { toggle_fullscreen, _BaseEvent }, EvtAppGUIState } ->
+			AppSpecificInfo = EvtAppGUIState#app_gui_state.app_specific_info,
+			MainFrame = AppSpecificInfo#controller_gui_info.main_frame,
 
-		{ _MaybeAppEventPair=undefined, _EventAppGUIState=undefined } ->
-			throw( eeee );
+			IsFullscreen = gui:is_fullscreen( MainFrame ),
 
-		{ _MaybeAppEventPair=undefined, EventAppGUIState } ->
+			% Toggle:
+			true = gui:set_fullscreen( MainFrame, not IsFullscreen ),
+
+			%trace_utils:info_fmt( "Toggle fullscreen just requested "
+			%   "(event of origin: ~w), whereas fullscreen status is ~ts.",
+			%   [ BaseEvent, IsFullscreen ] ),
+
+			gui_main_loop( EvtAppGUIState );
+
+		{ { help_requested, _BaseEvent }, EvtAppGUIState } ->
+			gui_main_loop( on_help( EvtAppGUIState ) );
+
+		{ { quit_requested, _BaseEvent }, EvtAppGUIState } ->
+			% Simply stop recursing:
+			on_quit( EvtAppGUIState );
+
+		{ _MaybeAppEventPair=undefined, EvtAppGUIState } ->
 			% User event processed without generating an application one:
 			% (we could trigger a rendering from there as well)
 			%
-			gui_main_loop( EventAppGUIState );
+			gui_main_loop( EvtAppGUIState );
 
 		% Security:
-		{ { OtherAppEvent, _BaseEvent }, OtherAppGUIState } ->
+		{ { OtherAppEvent, _BaseEvent }, EvtAppGUIState } ->
 			trace_utils:warning_fmt( "Unhandled (hence ignored) application "
 				"event by this controller:~n~ts.",
 				[ gui_event:application_event_to_string( OtherAppEvent ) ] ),
-			gui_main_loop( OtherAppGUIState );
+			gui_main_loop( EvtAppGUIState );
 
 		undefined ->
 			% As this GUI is to be updated even in the absence of user actions:
@@ -666,6 +685,7 @@ update_rendering( GUIState=#app_gui_state{
 	render( GUIState ).
 
 
+
 % @doc Performs a ("pure OpenGL") rendering, based on the specified GUI
 % information.
 %
@@ -674,17 +694,24 @@ render( GUIState=#app_gui_state{} ) ->
 	GUIState.
 
 
+
+% Called whenever help information is requested.
+-spec on_help( app_gui_state() ) -> app_gui_state().
+on_help( AppGUIState=#app_gui_state{ app_specific_info=#controller_gui_info{
+							main_frame=_MainFrame } } ) ->
+	trace_utils:debug( "Help requested." ),
+	AppGUIState.
+
+
 % Called whenever having to quit.
-on_quit( #app_gui_state{ app_specific_info=#controller_gui_info{
-												main_frame=MainFrame } } ) ->
-
+-spec on_quit( app_gui_state() ) -> app_gui_state().
+on_quit( AppGUIState=#app_gui_state{ app_specific_info=#controller_gui_info{
+							main_frame=MainFrame } } ) ->
 	trace_utils:debug( "Quit requested." ),
-
 	gui:destruct_window( MainFrame ),
+	gui:stop(),
+	AppGUIState.
 
-	% Simply stop recursing.
-
-	gui:stop().
 
 
 % @doc Runs the test.
