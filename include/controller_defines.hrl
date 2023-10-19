@@ -39,4 +39,9 @@
 
 % Default key mappings:
 
--define( default_quit_scan_code, ?MYR_SCANCODE_ESCAPE ).
+-define( default_help_scancode, ?MYR_K_h ).
+
+-define( default_fullscreen_keycode, ?MYR_K_f ).
+
+-define( default_quit_keycode, ?MYR_K_q ).
+-define( default_quit_scancode, ?MYR_SCANCODE_ESCAPE ).
