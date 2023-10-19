@@ -199,6 +199,13 @@ run_controller() ->
 
 	GLBaseInfo = { GLCanvas, GLContext },
 
+	MenuBar = gui:create_menu_bar( MainFrame ),
+
+	HelpMenu = gui:create_menu(),
+
+	gui:add_item( HelpMenu, help_menu_item, "" ),
+
+	gui:add_menu( MenuBar, HelpMenu, "Help" ),
 
 	gui:subscribe_to_events( { [ onResized, onShown, onWindowClosed ],
 							   MainFrame } ),
@@ -247,12 +254,32 @@ run_controller() ->
 	% Parent cannot be a sizer:
 	ButtonParent = SelectorPanel,
 
-	QuitButtonId = quit_button_id,
+	FullscreenBmp = gui_image:get_standard_bitmap( full_screen_bitmap ),
 
-	QuitButton = gui:create_button( "Quit", Position, ButtonSize, ButtonStyle,
+	% Nothing relevant among the built-in, stock identifier: the icon associated
+	% to zoom_factor_fit_button could have been used, but then the associated
+	% label ("Best fit") would apply (instead of "Toggle fullscreen" for
+	% example), and setting the label afterwards would remove the icon.
+
+	FullscreenButtonId = toggle_fullscreen,
+	FullscreenButton = gui:create_bitmap_button( FullscreenBmp,
+		FullscreenButtonId, ButtonParent ),
+	gui:set_tooltip( FullscreenButton, "Toggle fullscreen mode" ),
+
+	% For standard labels of stock widgets:
+	NoLabel = "",
+
+	HelpButtonId = help_button, % (built-in, stock identifier)
+	HelpButton = gui:create_button( NoLabel, Position, ButtonSize, ButtonStyle,
+									HelpButtonId, ButtonParent ),
+	gui:set_tooltip( HelpButton, "Show help" ),
+
+	QuitButtonId = exit_button, % (built-in, stock identifier)
+	QuitButton = gui:create_button( NoLabel, %Position, ButtonSize, ButtonStyle,
 									QuitButtonId, ButtonParent ),
+	gui:set_tooltip( QuitButton, "Quit this controller" ),
 
-	Buttons = [ QuitButton ],
+	Buttons = [ FullscreenButton, HelpButton, QuitButton ],
 
 	gui:subscribe_to_events( [ { onButtonClicked, B } || B <- Buttons ] ),
 
@@ -314,14 +341,15 @@ run_controller() ->
 	%
 	InitAppGUIState = gui_event:create_app_gui_state( [
 
-		{ help_requested, [ { keycode_pressed, ?default_help_scancode } ] },
-
 		% Trigger the following app-level event...
 		{ toggle_fullscreen,
-		  [ { keycode_pressed, ?default_fullscreen_keycode } ] },
+		  % ... whenever any of these user-level events happen:
+		  [ { button_clicked, FullscreenButtonId },
+			{ keycode_pressed, ?default_fullscreen_keycode } ] },
+
+		{ help_requested, [ { keycode_pressed, ?default_help_scancode } ] },
 
 		{ quit_requested,
-		  % ... whenever any of these user-level events happen:
 		  [ { button_clicked, QuitButtonId },
 			{ keycode_pressed,  ?default_quit_keycode },
 			{ scancode_pressed, ?default_quit_scancode },
@@ -332,8 +360,9 @@ run_controller() ->
 		{ onShown,         fun ctrl_onShown_driver/2 },
 		{ onRepaintNeeded, fun ctrl_onRepaintNeeded_driver/2 },
 		{ onResized,       fun ctrl_onResized_driver/2 },
+		%{ onButtonClicked, fun ctrl_onButtonClicked_driver/2 },
 		{ onWindowClosed,  fun ctrl_onWindowClosed/2 } ],
-								 InitAppGUIState ),
+												  InitAppGUIState ),
 
 	% Wanting to catch up with the computations:
 	erlang:process_flag( priority, _Level=high ),
