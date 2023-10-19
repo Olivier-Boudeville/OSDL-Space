@@ -219,8 +219,8 @@ getOrigin( State ) ->
 % Oneway section.
 
 
-% @doc Sets the origin of this referential, relatively to its parent otherwise
-% absolutely.
+% @doc Sets the origin of this referential, relatively to its parent if any,
+% otherwise absolutely.
 %
 -spec setOrigin( wooper:state(), point3() ) -> oneway_return().
 setOrigin( State, Origin ) ->
