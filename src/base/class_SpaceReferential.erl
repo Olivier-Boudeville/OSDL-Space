@@ -67,7 +67,7 @@
 
 
 -type referential() :: wooper:passive_instance().
-% A referential, as a mere term (rather than as a WOOPER instance, i.e. a
+% A referential, as a mere term (rather than as a WOOPER instance, that is a
 % process).
 
 -type referential_pid() :: wooper:instance_pid().
@@ -157,8 +157,8 @@ getOrigin( _State ) ->
 
 % Oneway section.
 
-% @doc Sets the origin of this referential relatively to its parent, otherwise
-% absolutely.
+% @doc Sets the origin of this referential relatively to its parent if any,
+% otherwise absolutely.
 %
 -spec setOrigin( wooper:state(), point() ) -> oneway_return().
 setOrigin( _State, _Origin ) ->

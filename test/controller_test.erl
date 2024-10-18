@@ -53,28 +53,9 @@
 -type screen() :: #screen{}.
 
 
-
-
-% Shorthands:
-
--type message() :: basic_utils:message().
-
--type coordinate() :: linear:coordinate().
-
--type integer_point2() :: point2:integer_point2().
-
--type frame() :: gui:frame().
--type panel() :: gui:panel().
--type button() :: gui:button().
--type status_bar() :: gui:status_bar().
-
--type app_gui_state() :: gui_event:app_gui_state().
--type event_elements() :: gui_event:event_elements().
--type app_event_return() :: gui_event:app_event_return().
-
-
 % Notably for the defaults:
 -include("controller_defines.hrl").
+
 
 
 % GUI section.
@@ -110,17 +91,38 @@
 -export_type([ controller_gui_info/0 ]).
 
 
+
+% Shorthands:
+
+-type message() :: basic_utils:message().
+
+-type width() :: gui:width().
+-type height() :: gui:height().
+
+-type integer_point2() :: point2:integer_point2().
+
+-type frame() :: gui_frame:frame().
+-type button() :: gui_button:button().
+-type status_bar() :: gui_statusbar:status_bar().
+
+-type gl_canvas() :: gui_opengl:gl_canvas().
+-type gl_context() :: gui_opengl:gl_context().
+
+-type user_event_registry() :: gui_event:user_event_registry().
+
+
+
 % The left part of the frame shows the canvas (viewports), while the right one
 % gathers the associated selectors.
 
 
--spec get_main_window_width() -> coordinate().
-get_main_window_width() ->
+-spec get_main_frame_width() -> width().
+get_main_frame_width() ->
 	1920.
 
 
--spec get_main_window_height() -> coordinate().
-get_main_window_height() ->
+-spec get_main_frame_height() -> height().
+get_main_frame_height() ->
 	1080.
 
 
@@ -178,11 +180,11 @@ run_controller() ->
 
 	% Starts as 1/4 of the full theoretical screen size:
 	FrameSize =
-		{ get_main_window_width() div 2, get_main_window_height() div 2 },
+		{ get_main_frame_width() div 2, get_main_frame_height() div 2 },
 
 
-	MainFrame = gui:create_frame( _Title="OSDL-Space Controller",
-		_FramePos=auto, FrameSize, _FrameStyle=default, _Id=main_frame_id,
+	MainFrame = gui_frame:create( _Title="OSDL-Space Controller",
+		_FramePos=auto, FrameSize, _FrameStyles=[ default ], _Id=main_frame_id,
 		_MaybeParent=undefined ),
 
 	% This test may request additionally an OpenGL debug context:
@@ -216,20 +218,19 @@ run_controller() ->
 	%
 	gui:subscribe_to_events( { onRepaintNeeded, GLCanvas } ),
 
-	StatusBar = gui:create_status_bar( MainFrame ),
+	StatusBar = gui_statusbar:create( MainFrame ),
 
-	gui:push_status_text( "Initialising.", StatusBar ),
+	gui_statusbar:push_text( StatusBar, "Initialising." ),
 
+	MainPanel = gui_panel:create( MainFrame ),
 
-	MainPanel = gui:create_panel( MainFrame ),
+	SelectorPanel = gui_panel:create( MainFrame ),
 
-	SelectorPanel = gui:create_panel( MainFrame ),
-
-	MainSizer = gui:create_sizer( horizontal ),
+	MainSizer = gui_sizer:create( _Orient=horizontal ),
 
 	% Grows with the window:
-	gui:add_to_sizer( MainSizer, MainPanel,
-					  [ { proportion, 2 }, expand_fully ] ),
+	gui_sizer:add_element( MainSizer, MainPanel,
+						   [ { proportion, 2 }, expand_fully ] ),
 
 	% Not subscribing to SelectorPanel: as this panel has child buttons, it will
 	% never receive any key press.
@@ -237,11 +238,11 @@ run_controller() ->
 	gui:subscribe_to_events( { onKeyPressed, MainPanel } ),
 
 	% Constant width:
-	gui:add_to_sizer( MainSizer, SelectorPanel,
-					  [ { proportion, 0 }, expand_fully ] ),
+	gui_sizer:add_element( MainSizer, SelectorPanel,
+						   [ { proportion, 0 }, expand_fully ] ),
 
-	ControlBoxSizer = gui:create_sizer_with_labelled_box( vertical,
-		SelectorPanel, "Controls" ),
+	ControlBoxSizer = gui_sizer:create_with_labelled_box( vertical, "Controls",
+														  SelectorPanel ),
 
 	% Adding the buttons to the control panel:
 
@@ -249,7 +250,7 @@ run_controller() ->
 
 	Position = auto,
 	ButtonSize = auto,
-	ButtonStyle = default,
+	ButtonStyles = [],
 
 	% Parent cannot be a sizer:
 	ButtonParent = SelectorPanel,
@@ -275,56 +276,57 @@ run_controller() ->
 	gui:set_tooltip( HelpButton, "Show help" ),
 
 	QuitButtonId = exit_button, % (built-in, stock identifier)
-	QuitButton = gui:create_button( NoLabel, %Position, ButtonSize, ButtonStyle,
+
+	QuitButton = gui_button:create( "Quit", Position, ButtonSize, ButtonStyles,
 									QuitButtonId, ButtonParent ),
 	gui:set_tooltip( QuitButton, "Quit this controller" ),
 
 	Buttons = [ FullscreenButton, HelpButton, QuitButton ],
 
-	gui:subscribe_to_events( [ { onButtonClicked, B } || B <- Buttons ] ),
+	gui:subscribe_to_events( { onButtonClicked, Buttons } ),
 
 
-	%gui:set_tooltip( MainPanel, "Controls for the selectors" ),
+	%gui_widget:set_tooltip( MainPanel, "Controls for the selectors" ),
 
-	[ gui:add_to_sizer( ControlBoxSizer, B, expand_fully ) || B <- Buttons ],
+	gui_sizer:add_elements( ControlBoxSizer, Buttons, expand_fully ),
 
-	gui:set_sizer( SelectorPanel, ControlBoxSizer ),
+	gui_widget:set_sizer( SelectorPanel, ControlBoxSizer ),
 
 	% Would prevent the panel to receive key presses:
-	%RenderBoxSizer = gui:create_sizer_with_labelled_box( vertical, MainPanel,
-	%                                                     "World rendering" ),
+	%RenderBoxSizer = gui_sizer:create_with_labelled_box( vertical,
+	%    "World rendering", MainPanel ),
 
 	% Same:
-	%RenderBoxSizer = gui:create_sizer_with_box( vertical, MainPanel ),
+	%RenderBoxSizer = gui_sizer:create_with_box( vertical, MainPanel ),
 
 	% Only one preserving key presses:
-	RenderBoxSizer = gui:create_sizer( vertical ),
+	%RenderBoxSizer = gui_sizer:create( vertical ),
 
 	%gui:subscribe_to_events( { onKeyPressed, Canvas } ),
 
-	%gui:set_background_color( Canvas, red ),
+	%gui_widget:set_background_color( Canvas, red ),
 
-	%gui:clear( Canvas ),
+	%gui_canvas:clear( Canvas ),
 
-	gui:add_to_sizer( RenderBoxSizer, GLCanvas,
-					  [ { proportion, 1 }, expand_fully ] ),
+	gui_sizer:add_element( RenderBoxSizer, GLCanvas,
+						   [ { proportion, 1 }, expand_fully ] ),
 
-	%gui:set_tooltip( Canvas, "Rendering of OSDL-Space." ),
+	%gui_widget:set_tooltip( Canvas, "Rendering of OSDL-Space." ),
 
-	gui:set_sizer( MainPanel, RenderBoxSizer ),
+	gui_widget:set_sizer( MainPanel, RenderBoxSizer ),
 
-	gui:set_sizer( MainFrame, MainSizer ),
+	gui_widget:set_sizer( MainFrame, MainSizer ),
 
 	% Focus needed to receive events; both components work:
-	gui:set_focus( MainPanel ),
-	%gui:set_focus( GLCanvas ),
+	gui_widget:set_focus( MainPanel ),
+	%gui_widget:set_focus( GLCanvas ),
 
 	% Sets the GUI to visible:
-	gui:show( MainFrame ),
+	gui_frame:show( MainFrame ),
 
 	% FIXME
-	Screen = #screen{ center={ get_main_window_width() / 3 - 550,
-							   get_main_window_height() / 2 } },
+	Screen = #screen{ center={ get_main_frame_width() / 3 - 550,
+							   get_main_frame_height() / 2 } },
 
 	CtlrSpecificGUIInfo = #controller_gui_info{ main_frame=MainFrame,
 												main_panel=MainPanel,
@@ -367,7 +369,7 @@ run_controller() ->
 	% Wanting to catch up with the computations:
 	erlang:process_flag( priority, _Level=high ),
 
-	gui:push_status_text( "Initialised.", StatusBar ),
+	gui_statusbar:push_text( "Initialised.", StatusBar ),
 
 	% OpenGL will be initialised only when the corresponding frame will be ready
 	% (that is once first reported as resized):
@@ -423,21 +425,7 @@ gui_main_loop( AppGUIState ) ->
 			trace_utils:warning_fmt( "Unhandled (hence ignored) application "
 				"event by this controller:~n~ts.",
 				[ gui_event:application_event_to_string( OtherAppEvent ) ] ),
-			gui_main_loop( EvtAppGUIState );
-
-		undefined ->
-			% As this GUI is to be updated even in the absence of user actions:
-			case AppGUIState#app_gui_state.opengl_base_state of
-
-				{ uninitialised, _GLCanvas, _GLContext } ->
-					trace_utils:debug( "(OpenGL not initialised yet)" ),
-					gui_main_loop( AppGUIState );
-
-				{ initialised, _GLCanvas, _GLContext } ->
-					RenderAppGUIState = update_rendering( AppGUIState ),
-					gui_main_loop( RenderAppGUIState )
-
-			end;
+			gui_main_loop( OtherAppGUIState );
 
 		% Extra safety:
 		OtherAppEventReturn ->
@@ -476,6 +464,9 @@ ctrl_onShown_driver( _Elements=[ Frame, FrameId, EventContext ],
 			opengl_base_state={ _GLStatus=uninitialised, _GLCanvas,
 								_GLContext } } ) ->
 
+	trace_utils:debug_fmt( "Controller driver: parent window (main frame) "
+		"just shown (initial size of ~w).", [ gui_widget:get_size( Frame ) ] ),
+
 	% A transient former content for frame and canvas can be seen briefly, as we
 	% did not succeed in clearing it early at start-up.
 
@@ -487,6 +478,7 @@ ctrl_onShown_driver( _Elements=[ Frame, FrameId, EventContext ],
 
 	% Optional yet better:
 	gui:unsubscribe_from_events( { onShown, Frame } ),
+	fixme.
 
 	% Done once for all:
 	InitAppGUIState = initialise_opengl( AppGUIState ),
@@ -506,9 +498,8 @@ initialise_opengl( AppGUIState=#app_gui_state{
 		app_specific_info=#controller_gui_info{ } } ) ->
 
 	% Initial size of canvas is typically 20x20 pixels:
-	trace_utils:debug_fmt(
-		"Initialising OpenGL (whereas canvas is of initial size ~w).",
-		[ gui:get_size( GLCanvas ) ] ),
+	trace_utils:debug_fmt( "Initialising OpenGL (whereas canvas is of initial "
+						   "size ~w).", [ gui_widget:get_size( GLCanvas ) ] ),
 
 	% So done only once:
 	gui_opengl:set_context_on_shown( GLCanvas, GLContext ),
@@ -737,9 +728,11 @@ on_help( AppGUIState=#app_gui_state{ app_specific_info=#controller_gui_info{
 on_quit( AppGUIState=#app_gui_state{ app_specific_info=#controller_gui_info{
 							main_frame=MainFrame } } ) ->
 	trace_utils:debug( "Quit requested." ),
-	gui:destruct_window( MainFrame ),
-	gui:stop(),
-	AppGUIState.
+
+	% Simply stop recursing:
+	gui_frame:destruct( MainFrame ),
+
+	gui:stop().
 
 
 
