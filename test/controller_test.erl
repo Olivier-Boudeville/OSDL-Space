@@ -1,4 +1,4 @@
-% Copyright (C) 2023-2023 Olivier Boudeville
+% Copyright (C) 2023-2024 Olivier Boudeville
 %
 % This file is part of the OSDL-Space library.
 %
@@ -25,13 +25,14 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Sunday, June 18, 2023.
 
-
-% @doc Test of an <b>OSDL-Space controller</b>.
-%
-% It relies on the applicative mode of operation of MyriadGUI and on modern
-% (shader-based) OpenGL.
-%
 -module(controller_test).
+
+-moduledoc """
+Test of an **OSDL-Space controller**.
+
+It relies on the applicative mode of operation of MyriadGUI and on modern
+(shader-based) OpenGL.
+""".
 
 
 % For run/0 export and al:
@@ -45,7 +46,7 @@
 % Rendering section.
 
 
-% Description of a simple, local, screen coordinate system:
+% Description of a simple, local, screen 2D coordinate system:
 -record( screen, {
 
 	center :: integer_point2() } ).
@@ -82,9 +83,13 @@
 	% Information regarding the displayed screen:
 	screen :: screen() } ).
 
+
+
+-doc """
+Application-specific GUI information, to be stored in the app_specific_info
+field of the app_gui_state record, and to be passed between event drivers.
+""".
 -type controller_gui_info() :: #controller_gui_info{}.
-% Application-specific GUI information, to be stored in the app_specific_info
-% field of the app_gui_state record, and to be passed between event drivers.
 
 
 % Silencing:
@@ -92,9 +97,9 @@
 
 
 
-% Shorthands:
+% Type shorthands:
 
--type message() :: basic_utils:message().
+%-type message() :: basic_utils:message().
 
 -type width() :: gui:width().
 -type height() :: gui:height().
@@ -102,14 +107,17 @@
 -type integer_point2() :: point2:integer_point2().
 
 -type frame() :: gui_frame:frame().
+-type panel() :: gui_panel:panel().
 -type button() :: gui_button:button().
 -type status_bar() :: gui_statusbar:status_bar().
 
--type gl_canvas() :: gui_opengl:gl_canvas().
--type gl_context() :: gui_opengl:gl_context().
+-type app_gui_state() :: gui_event:app_gui_state().
+%-type gl_canvas() :: gui_opengl:gl_canvas().
+%-type gl_context() :: gui_opengl:gl_context().
 
--type user_event_registry() :: gui_event:user_event_registry().
-
+%-type user_event_registry() :: gui_event:user_event_registry().
+-type event_elements() :: gui_event:event_elements().
+-type app_event_return() :: gui_event:app_event_return().
 
 
 % The left part of the frame shows the canvas (viewports), while the right one
@@ -127,7 +135,7 @@ get_main_frame_height() ->
 
 
 
-% @doc Initialises the GUI and associated parts.
+-doc "Initialises the GUI and associated parts.".
 -spec start() -> no_return().
 start() ->
 
@@ -191,8 +199,8 @@ run_controller() ->
 	%GLAttrs = gui_opengl:get_default_canvas_attributes(),
 	GLAttrs = [ debug_context | gui_opengl:get_default_canvas_attributes() ],
 
-	GLCanvas = gui_opengl:create_canvas( _Parent=MainFrame,
-		_CanvasAttrs=[ { gl_attributes, GLAttrs } ] ),
+	GLCanvas = gui_opengl:create_canvas(
+		_CanvasAttrs=[ { gl_attributes, GLAttrs } ], _Parent=MainFrame ),
 
 	% Created, yet not bound yet (must wait for the main frame to be shown) (so
 	% GL context cannot be set as current yet):
@@ -201,13 +209,13 @@ run_controller() ->
 
 	GLBaseInfo = { GLCanvas, GLContext },
 
-	MenuBar = gui:create_menu_bar( MainFrame ),
+	MenuBar = gui_menu:create_bar( MainFrame ),
 
-	HelpMenu = gui:create_menu(),
+	HelpMenu = gui_menu:create(),
 
-	gui:add_item( HelpMenu, help_menu_item, "" ),
+	gui_menu:add_item( HelpMenu, help_menu_item, "" ),
 
-	gui:add_menu( MenuBar, HelpMenu, "Help" ),
+	gui_menu:add_menu( MenuBar, HelpMenu, "Help" ),
 
 	gui:subscribe_to_events( { [ onResized, onShown, onWindowClosed ],
 							   MainFrame } ),
@@ -255,7 +263,7 @@ run_controller() ->
 	% Parent cannot be a sizer:
 	ButtonParent = SelectorPanel,
 
-	FullscreenBmp = gui_image:get_standard_bitmap( full_screen_bitmap ),
+	FullscreenBmp = gui_bitmap:get_standard( full_screen_bitmap ),
 
 	% Nothing relevant among the built-in, stock identifier: the icon associated
 	% to zoom_factor_fit_button could have been used, but then the associated
@@ -263,23 +271,30 @@ run_controller() ->
 	% example), and setting the label afterwards would remove the icon.
 
 	FullscreenButtonId = toggle_fullscreen,
-	FullscreenButton = gui:create_bitmap_button( FullscreenBmp,
+
+	FullscreenButton = gui_button:create_bitmap( FullscreenBmp,
 		FullscreenButtonId, ButtonParent ),
-	gui:set_tooltip( FullscreenButton, "Toggle fullscreen mode" ),
+
+	gui_widget:set_tooltip( FullscreenButton, "Toggle fullscreen mode" ),
+
 
 	% For standard labels of stock widgets:
 	NoLabel = "",
 
 	HelpButtonId = help_button, % (built-in, stock identifier)
-	HelpButton = gui:create_button( NoLabel, Position, ButtonSize, ButtonStyle,
-									HelpButtonId, ButtonParent ),
-	gui:set_tooltip( HelpButton, "Show help" ),
+
+	HelpButton = gui_button:create( NoLabel, Position, ButtonSize,
+		_ButtonStyles=[], HelpButtonId, ButtonParent ),
+
+	gui_widget:set_tooltip( HelpButton, "Show help" ),
+
 
 	QuitButtonId = exit_button, % (built-in, stock identifier)
 
 	QuitButton = gui_button:create( "Quit", Position, ButtonSize, ButtonStyles,
 									QuitButtonId, ButtonParent ),
-	gui:set_tooltip( QuitButton, "Quit this controller" ),
+
+	gui_widget:set_tooltip( QuitButton, "Quit this controller" ),
 
 	Buttons = [ FullscreenButton, HelpButton, QuitButton ],
 
@@ -300,7 +315,7 @@ run_controller() ->
 	%RenderBoxSizer = gui_sizer:create_with_box( vertical, MainPanel ),
 
 	% Only one preserving key presses:
-	%RenderBoxSizer = gui_sizer:create( vertical ),
+	RenderBoxSizer = gui_sizer:create( vertical ),
 
 	%gui:subscribe_to_events( { onKeyPressed, Canvas } ),
 
@@ -335,10 +350,11 @@ run_controller() ->
 												screen=Screen },
 
 
-	% We prefer here relying on keycodes rather than scancodes, as at least for
-	% defaults we prefer setting the keycode 'q' for quit for example.
+	% We prefer here relying on keycodes (characters) rather than scancodes
+	% (locations), as at least for defaults we prefer setting the keycode 'q'
+	% for 'quit' for example.
 
-	% Create a table abstracting-out the various ways for the user to generate
+	% Creates a table abstracting-out the various ways for the user to generate
 	% events (e.g. based on remapped keys, mouse actions, etc.):
 	%
 	InitAppGUIState = gui_event:create_app_gui_state( [
@@ -366,10 +382,10 @@ run_controller() ->
 		{ onWindowClosed,  fun ctrl_onWindowClosed/2 } ],
 												  InitAppGUIState ),
 
-	% Wanting to catch up with the computations:
+	% Wanting to catch up with the overall pace:
 	erlang:process_flag( priority, _Level=high ),
 
-	gui_statusbar:push_text( "Initialised.", StatusBar ),
+	gui_statusbar:push_text( StatusBar, "Initialised." ),
 
 	% OpenGL will be initialised only when the corresponding frame will be ready
 	% (that is once first reported as resized):
@@ -378,12 +394,13 @@ run_controller() ->
 
 
 
-% @doc The main loop of this test, driven by the receiving of MyriadGUI
-% messages, whose events are converted to application ones.
-%
-% OpenGL will be initialised only when the corresponding frame will be ready
-% (that is once first reported as resized).
-%
+-doc """
+The main loop of this test, driven by the receiving of MyriadGUI messages, whose
+events are converted to application ones.
+
+OpenGL will be initialised only when the corresponding frame will be ready (that
+is once first reported as resized).
+""".
 -spec gui_main_loop( app_gui_state() ) -> no_return().
 gui_main_loop( AppGUIState ) ->
 
@@ -425,7 +442,7 @@ gui_main_loop( AppGUIState ) ->
 			trace_utils:warning_fmt( "Unhandled (hence ignored) application "
 				"event by this controller:~n~ts.",
 				[ gui_event:application_event_to_string( OtherAppEvent ) ] ),
-			gui_main_loop( OtherAppGUIState );
+			gui_main_loop( EvtAppGUIState );
 
 		% Extra safety:
 		OtherAppEventReturn ->
@@ -438,17 +455,18 @@ gui_main_loop( AppGUIState ) ->
 
 
 
-% @doc The application-specific event driver for the onShown (user) event type,
-% overriding default_onShown_driver/2: sets up OpenGL, once for all, now that a
-% proper OpenGL context is available.
-%
-% Its type is event_driver().
-%
-% The most suitable first location to initialise OpenGL, as making a GL context
-% current requires a shown window.
-%
+-doc """
+The application-specific event driver for the onShown (user) event type,
+overriding default_onShown_driver/2: sets up OpenGL, once for all, now that a
+proper OpenGL context is available.
+
+Its type is event_driver().
+
+The most suitable first location to initialise OpenGL, as making a GL context
+current requires a shown window.
+""".
 -spec ctrl_onShown_driver( event_elements(), app_gui_state() ) ->
-								app_event_return().
+												app_event_return().
 % Here OpenGL is to be used, but is not initialised yet.
 %
 % This is the most suitable first location to initialise OpenGL, as making a GL
@@ -474,11 +492,11 @@ ctrl_onShown_driver( _Elements=[ Frame, FrameId, EventContext ],
 		"initial size of ~w; using OpenGL, which as expected is not "
 		"initialised yet; initialising it.",
 		[ gui:object_to_string( Frame ), gui_id:id_to_string( FrameId ),
-		  gui:context_to_string( EventContext ), gui:get_size( Frame ) ] ),
+		  gui_event:context_to_string( EventContext ),
+		  gui_widget:get_size( Frame ) ] ),
 
 	% Optional yet better:
 	gui:unsubscribe_from_events( { onShown, Frame } ),
-	fixme.
 
 	% Done once for all:
 	InitAppGUIState = initialise_opengl( AppGUIState ),
@@ -487,10 +505,11 @@ ctrl_onShown_driver( _Elements=[ Frame, FrameId, EventContext ],
 
 
 
-% @doc Sets up OpenGL, once for all, once a proper OpenGL context is available.
-%
-% Defined for separation of concern, even if called from a single location.
-%
+-doc """
+Sets up OpenGL, once for all, once a proper OpenGL context is available.
+
+Defined for separation of concern, even if called from a single location.
+""".
 -spec initialise_opengl( app_gui_state() ) -> app_gui_state().
 initialise_opengl( AppGUIState=#app_gui_state{
 		% Check:
@@ -533,7 +552,7 @@ initialise_opengl( AppGUIState=#app_gui_state{
 			  _Far=1.0 ),
 
 	%trace_utils:debug_fmt( "Managing a resize of the main frame to ~w.",
-	%                       [ gui:get_size( MainFrame ) ] ),
+	%                       [ gui_widget:get_size( MainFrame ) ] ),
 
 	InitAppGUIState = AppGUIState#app_gui_state{
 		opengl_base_state={ initialised, GLCanvas, GLContext } },
@@ -545,7 +564,8 @@ initialise_opengl( AppGUIState=#app_gui_state{
 
 
 
-% Overrides default_onRepaintNeeded_driver/2:
+-doc "Overrides default_onRepaintNeeded_driver/2.".
+% Nothing to do if not initialised:
 ctrl_onRepaintNeeded_driver(
 		_Elements=[ _GLCanvas, _GLCanvasId, _EventContext ],
 		AppGUIState=#app_gui_state{
@@ -572,7 +592,7 @@ ctrl_onRepaintNeeded_driver( _Elements=[ GLCanvas, _GLCanvasId, _EventContext ],
 	% A rendering is not strictly necessary in this case, as anyway a regular
 	% redraw is to happen soon afterwards.
 
-	gui:enable_repaint( GLCanvas ),
+	gui_widget:enable_repaint( GLCanvas ),
 
 	% Includes the GL flushing and the buffer swaping:
 	%
@@ -584,10 +604,11 @@ ctrl_onRepaintNeeded_driver( _Elements=[ GLCanvas, _GLCanvasId, _EventContext ],
 
 
 
-% @doc The controller-specific event driver for the onResized (user) event type.
-%
-% Its type is event_driver().
-%
+-doc """
+The controller-specific event driver for the onResized (user) event type.
+
+Its type is event_driver().
+""".
 -spec ctrl_onResized_driver( event_elements(), app_gui_state() ) ->
 											app_event_return().
 ctrl_onResized_driver( _Elements=[ _ParentWindow, _ParentWindowId,
@@ -625,7 +646,7 @@ ctrl_onWindowClosed( Elements=[ ParentWindow, _ParentWindowId,
 	% Very final check, while there is still an OpenGL context:
 	gui_opengl:check_error(),
 
-	gui:destruct_window( ParentWindow ),
+	gui_window:destruct( ParentWindow ),
 
 	BaseGUIEvent = { onWindowClosed, Elements },
 
@@ -635,15 +656,19 @@ ctrl_onWindowClosed( Elements=[ ParentWindow, _ParentWindowId,
 
 
 
+
 % Section for helpers:
 
-% @doc Managing a resizing of the main frame.
-%
-% Defined as a separate function, as to be called from two contexts: when the
-% main frame is shown and when a resizing is needed.
-%
-% OpenGL context expected here to have already been set.
-%
+
+-doc """
+Managing a resizing of the main frame.
+
+Defined as a separate function, as to be called from two contexts: when the main
+frame is shown and when a resizing is needed.
+
+OpenGL context expected here to have already been set.
+
+""".
 -spec on_main_frame_resized( app_gui_state() ) -> app_gui_state().
 on_main_frame_resized( GUIState=#app_gui_state{
 		opengl_base_state={ initialised, GLCanvas, _GLContext },
@@ -651,10 +676,10 @@ on_main_frame_resized( GUIState=#app_gui_state{
 	% Maximises widgets in their respective area:
 
 	% First, panel in main frame:
-	gui:maximise_in_parent( MainPanel ),
+	gui_widget:maximise_in_parent( MainPanel ),
 
 	% Then OpenGL canvas in panel:
-	{ CanvasWidth, CanvasHeight } = gui:maximise_in_parent( GLCanvas ),
+	{ CanvasWidth, CanvasHeight } = gui_widget:maximise_in_parent( GLCanvas ),
 
 	%trace_utils:debug_fmt( "New client canvas size: {~B,~B}.",
 	%                       [ CanvasWidth, CanvasHeight ] ),
@@ -673,7 +698,7 @@ on_main_frame_resized( GUIState=#app_gui_state{
 	% canvas size, not according to the one that was expected to be already
 	% resized.
 	%
-	gui:sync( GLCanvas ),
+	gui_widget:sync( GLCanvas ),
 
 	gl:matrixMode( ?GL_PROJECTION ),
 
@@ -695,10 +720,11 @@ on_main_frame_resized( GUIState=#app_gui_state{
 
 
 
-% @doc Updates the rendering.
-%
-% Expected to be called periodically.
-%
+-doc """
+Updates the rendering.
+
+Expected to be called periodically.
+""".
 -spec update_rendering( app_gui_state() ) -> app_gui_state().
 update_rendering( GUIState=#app_gui_state{
 		app_specific_info=#controller_gui_info{} } ) ->
@@ -706,16 +732,16 @@ update_rendering( GUIState=#app_gui_state{
 
 
 
-% @doc Performs a ("pure OpenGL") rendering, based on the specified GUI
-% information.
-%
+-doc """
+Performs a ("pure OpenGL") rendering, based on the specified GUI information.
+""".
 -spec render( app_gui_state() ) -> app_gui_state().
 render( GUIState=#app_gui_state{} ) ->
 	GUIState.
 
 
 
-% Called whenever help information is requested.
+-doc "Called whenever help information is requested.".
 -spec on_help( app_gui_state() ) -> app_gui_state().
 on_help( AppGUIState=#app_gui_state{ app_specific_info=#controller_gui_info{
 							main_frame=_MainFrame } } ) ->
@@ -723,10 +749,11 @@ on_help( AppGUIState=#app_gui_state{ app_specific_info=#controller_gui_info{
 	AppGUIState.
 
 
-% Called whenever having to quit.
+
+-doc "Called whenever having to quit.".
 -spec on_quit( app_gui_state() ) -> app_gui_state().
-on_quit( AppGUIState=#app_gui_state{ app_specific_info=#controller_gui_info{
-							main_frame=MainFrame } } ) ->
+on_quit( _AppGUIState=#app_gui_state{ app_specific_info=#controller_gui_info{
+			main_frame=MainFrame } } ) ->
 	trace_utils:debug( "Quit requested." ),
 
 	% Simply stop recursing:
@@ -736,7 +763,7 @@ on_quit( AppGUIState=#app_gui_state{ app_specific_info=#controller_gui_info{
 
 
 
-% @doc Runs the test.
+-doc "Runs the test.".
 -spec run() -> no_return().
 run() ->
 

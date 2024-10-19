@@ -1,4 +1,4 @@
-% Copyright (C) 2023-2023 Olivier Boudeville
+% Copyright (C) 2023-2024 Olivier Boudeville
 %
 % This file is part of the OSDL-Space library.
 %
@@ -25,21 +25,17 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Sunday, June 4, 2023.
 
-
-% @doc A <b>3D frame of reference</b> class.
 -module(class_3DReferential).
+
+-moduledoc "A **3D frame of reference** class.".
 
 
 -define( class_description,
-		 "Lightweight base class for frames of reference of all sorts." ).
+		 "Lightweight base class for 3D frames of reference." ).
 
 
 % Determines what are the direct mother classes of this class (if any):
--define( superclasses, [ class_SpaceReferential ] ).
-
-
-% Design notes:
-%
+-define( superclasses, [ class_ReferenceFrame ] ).
 
 
 
@@ -51,43 +47,52 @@
 
 	% Finally directly stored in its transition matrix:
 	%{ origin, point3(),
-	%  "the origin of this referential, expressed in its parent one, if any, "
-	%  "otherwise in absolute terms" },
+	%  "the origin of this frame of reference, expressed in its parent one, "
+	%  "if any, otherwise in absolute terms" },
 
-	{ parent, maybe( any_referential3() ),
-	  "the parent referential (if any; and of any type) of this one" },
+	% Overriding inherited attribute:
+	{ parent, option( any_referential3() ),
+	  "the parent 3D frame of reference (if any; and of any type) "
+	  "of this one" },
 
 	{ to_parent, transition_matrix4(),
-	  "the transition matrix from this referential to its parent; "
-	  "if this referential is absolute, then it is identity_4" } ] ).
+	  "the transition matrix from this 3D frame of reference to its parent; "
+	  "if this frame of reference is absolute, then it is identity_4" } ] ).
 
 
 
--type referential3() :: wooper:passive_instance().
-% A 3D referential, as a mere term (rather than as a WOOPER instance, i.e. a
-% process).
-
--type referential3_pid() :: wooper:instance_pid().
-% A 3D referential, as a WOOPER process.
-
-
--type referential3_id() :: count().
-% A 3D referential, as designated by an identifier, defined as a (positive)
-% integer, referring (as a key) to an (implicit) table of 3D referentials.
+-doc """
+A 3D frame of reference, as a mere term (rather than as a WOOPER instance,
+i.e. a process).
+""".
+-type ref_frame3() :: wooper:passive_instance().
 
 
--type any_referential3() :: referential3()
-						  | referential3_pid()
-						  | referential3_id().
-% Any type of reference onto a 3D referential.
+-doc "A 3D frame of reference, as a WOOPER process.".
+-type ref_frame3_pid() :: wooper:instance_pid().
 
 
--export_type([ referential3/0, referential3_pid/0, referential3_id/0,
-			   any_referential3/0 ]).
+
+-doc """
+A 3D frame of reference, as designated by an identifier, defined as a (positive)
+integer, referring (as a key) to an (implicit) table of 3D frame of references.
+""".
+-type ref_frame3_id() :: count().
+
+
+-doc "Any type of reference onto a 3D frame of reference.".
+-type any_ref_frame3() :: ref_frame3()
+						| ref_frame3_pid()
+						| ref_frame3_id().
+
+
+
+-export_type([ ref_frame3/0, ref_frame3_pid/0, ref_frame3_id/0,
+			   any_ref_frame3/0 ]).
 
 
 % Helper (non-static) functions:
--export([ referential3_to_string/1, to_string/1 ]).
+-export([ ref_frame3_to_string/1, to_string/1 ]).
 
 
 % Allows to define WOOPER base variables and methods for that class:
@@ -95,10 +100,13 @@
 
 
 % Implementation notes:
+%
+% Transformations (hence bidirectional) could be used instead of transition
+% matrices (unidirectional).
 
 
 
-% Shorthands:
+% Type shorthands:
 
 -type count() :: basic_utils:count().
 
@@ -113,44 +121,48 @@
 
 
 
-% @doc Constructs an absolute 3D referential centered at the specified origin.
+-doc """
+Constructs an absolute 3D frame of reference, centered at the specified origin.
+""".
 -spec construct( wooper:state(), point3() ) -> wooper:state().
 construct( State, Origin ) ->
-	% Not class_SpaceReferential:construct(State, Origin), as no matrix to store
-	% it yet: class_SpaceReferential:construct(State, Origin),
 
-	NoParentState = class_SpaceReferential:construct( State ),
+	% Not class_ReferenceFrame:construct(State, Origin), as no matrix to store
+	% it yet.
+
+	NoParentState = class_ReferenceFrame:construct( State ),
 	ParentTransMat4 = matrix4:translation( Origin ),
 
 	setAttribute( NoParentState, to_parent, ParentTransMat4 ).
 
 
 
-% @doc Constructs a 3D referential centered at the specified origin relatively
-% to any specified one.
-%
--spec construct( wooper:state(), point3(), maybe( any_referential3() ) ) ->
+-doc """
+Constructs a 3D frame of reference centered at the specified origin, relatively
+to any specified one.
+""".
+-spec construct( wooper:state(), point3(), option( any_ref_frame3() ) ) ->
 						wooper:state().
-construct( State, Origin, MaybeParentReferential ) ->
-	NoParentState = class_SpaceReferential:construct( State ),
+construct( State, Origin, MaybeParent3DRefFrame ) ->
+	NoParentState = class_ReferenceFrame:construct( State ),
 
 	ParentTransMat4 = matrix4:translation( Origin ),
 
-	setAttributes( NoParentState, [ { parent, MaybeParentReferential },
+	setAttributes( NoParentState, [ { parent, MaybeParent3DRefFrame },
 									{ to_parent, ParentTransMat4 } ] ).
 
 
 
-% @doc Constructs a 3D referential centered at the specified origin relatively
-% to the specified one, with its corresponding axes, which are supposed to be
-% already unit vectors.
-%
+-doc """
+Constructs a 3D frame of reference centered at the specified origin relatively
+to the specified one, with its corresponding axes, which are supposed to be
+already unit vectors.
+""".
 -spec construct( wooper:state(), point3(), unit_vector3(), unit_vector3(),
-				 unit_vector3(), maybe( any_referential3() ) ) ->
-						wooper:state().
+				 unit_vector3(), option( any_ref_frame3() ) ) -> wooper:state().
 construct( State, Origin, X, Y, Z, MaybeParentReferential ) ->
 
-	NoParentState = class_SpaceReferential:construct( State ),
+	NoParentState = class_ReferenceFrame:construct( State ),
 
 	cond_utils:if_defined( osdl_space_debug_referentials,
 		begin
@@ -159,11 +171,11 @@ construct( State, Origin, X, Y, Z, MaybeParentReferential ) ->
 			vector3:check_orthogonal( X, Y ),
 			vector3:check_orthogonal( X, Z ),
 			vector3:check_orthogonal( Y, Z ),
-			check_maybe_referential( MaybeParentReferential )
+			check_maybe_ref_frame( MaybeParentReferential )
 		end ),
 
-	% From this referential to the parent one, the origin and axes of this
-	% referential being expressed in its parent one:
+	% From this frame of reference to the parent one, the origin and axes of
+	% this frame of reference being expressed in its parent one:
 	%
 	ParentTransMat4 = matrix4:transition( Origin, X, Y, Z ),
 
@@ -172,30 +184,31 @@ construct( State, Origin, X, Y, Z, MaybeParentReferential ) ->
 
 
 
-% @doc Constructs a 3D referential centered at the specified origin relatively
-% to the specified one, with the corresponding two X and Y axes, which are not
-% necessarily already unit vectors. The third axis, Z, will be deduced from X
-% and Y.
-%
+-doc """
+Constructs a 3D frame of reference centered at the specified origin relatively
+to the specified one, with the corresponding two X and Y axes, which are not
+necessarily already unit vectors. The third axis, Z, will be deduced from X and
+Y.
+""".
 -spec construct( wooper:state(), point3(), vector3(), vector3(),
-				 maybe( any_referential3() ) ) -> wooper:state().
+				 option( any_ref_frame3() ) ) -> wooper:state().
 construct( State, Origin, X, Y, MaybeParentReferential ) ->
 
-	NoParentState = class_SpaceReferential:construct( State ),
+	NoParentState = class_ReferenceFrame:construct( State ),
 
 	cond_utils:if_defined( osdl_space_debug_referentials,
 		begin
 			point3:check( Origin ),
 			vector3:check_vectors( [ X, Y ] ),
-			check_maybe_referential( MaybeParentReferential )
+			check_maybe_ref_frame( MaybeParentReferential )
 		end ),
 
 	Xunit = vector3:normalise( X ),
 	Yunit = vector3:normalise( Y ),
 	Zunit = vector3:cross_product( X, Y ),
 
-	% From this referential to the parent one, the origin and axes of this
-	% referential being expressed in its parent one:
+	% From this frame of reference to the parent one, the origin and axes of
+	% this frame of reference being expressed in its parent one:
 	%
 	ParentTransMat4 = matrix4:transition( Origin, Xunit, Yunit, Zunit ),
 
@@ -203,12 +216,14 @@ construct( State, Origin, X, Y, MaybeParentReferential ) ->
 									{ to_parent, ParentTransMat4 } ] ).
 
 
+
 % Request section.
 
 
-% @doc Returns the origin of this referential relatively to its parent,
-% otherwise absolutely.
-%
+-doc """
+Returns the origin of this 3D frame of reference relatively to its parent if
+any, otherwise absolutely.
+""".
 -spec getOrigin( wooper:state() ) -> const_request_return( point3() ).
 getOrigin( State ) ->
 	ParentTransMat4 = ?getAttr(to_parent),
@@ -216,12 +231,14 @@ getOrigin( State ) ->
 
 
 
+
 % Oneway section.
 
 
-% @doc Sets the origin of this referential, relatively to its parent if any,
-% otherwise absolutely.
-%
+-doc """
+Sets the origin of this frame of reference, relatively to its parent if any,
+otherwise absolutely.
+""".
 -spec setOrigin( wooper:state(), point3() ) -> oneway_return().
 setOrigin( State, Origin ) ->
 	NewParentTransMat4 = matrix4:set_column_o( ?getAttr(to_parent), Origin ),
@@ -235,64 +252,68 @@ setOrigin( State, Origin ) ->
 
 
 
-% @doc Checks (with necessary yet not sufficient conditions) that the specified
-% term is a (3D) referential; if yes, returns it, otherwise throws an exception.
-%
--spec check_referential( term() ) -> static_return( any_referential3() ).
-check_referential( RefPassivInstState=#state_holder{} ) ->
+-doc """
+Checks (with necessary yet not sufficient conditions) that the specified term is
+a (3D) frame of reference; if yes, returns it, otherwise throws an exception.
+""".
+-spec check_ref_frame( term() ) -> static_return( any_ref_frame3() ).
+check_ref_frame( RefPassivInstState=#state_holder{} ) ->
 	wooper:return_static(
 		wooper:check_instance_of( _Classname=?MODULE, RefPassivInstState ) );
 
-check_referential( RefPid ) when is_pid( RefPid ) ->
+check_ref_frame( RefPid ) when is_pid( RefPid ) ->
 	wooper:return_static( RefPid );
 
-check_referential( RefId ) when is_integer( RefId ) ->
+check_ref_frame( RefId ) when is_integer( RefId ) ->
 	wooper:return_static( RefId );
 
-check_referential( Other ) ->
-	throw( { invalid_referential, Other } ).
+check_ref_frame( Other ) ->
+	throw( { invalid_ref_frame, Other } ).
 
 
 
-% @doc Checks (with necessary yet not sufficient conditions) that the specified
-% term is a maybe - (3D) referential; if yes, returns it, otherwise throws an
-% exception.
-%
--spec check_maybe_referential( term() ) -> static_return( any_referential3() ).
-check_maybe_referential( MaybeRef=undefined ) ->
+-doc """
+Checks (with necessary yet not sufficient conditions) that the specified term is
+a maybe - 3D frame of reference; if yes, returns it, otherwise throws an
+exception.
+""".
+-spec check_maybe_ref_frame( term() ) -> static_return( any_ref_frame3() ).
+check_maybe_ref_frame( MaybeRef=undefined ) ->
 	wooper:return_static( MaybeRef );
 
-check_maybe_referential( Ref ) ->
-	wooper:return_static( check_referential( Ref ) ).
+check_maybe_ref_frame( Ref ) ->
+	wooper:return_static( check_ref_frame( Ref ) ).
 
 
 
-% @doc Returns a textual description of the specified referential of any type.
--spec referential3_to_string( any_referential3() ) -> ustring().
-referential3_to_string( PassiveReferential=#state_holder{} ) ->
-	wooper:execute_const_request( PassiveReferential, toString );
+-doc """
+Returns a textual description of the specified frame of reference of any type.
+""".
+-spec ref_frame3_to_string( any_ref_frame3() ) -> ustring().
+ref_frame3_to_string( PassiveRef_Frame=#state_holder{} ) ->
+	wooper:execute_const_request( PassiveRef_Frame, toString );
 
-referential3_to_string( ReferentialPid ) when is_pid( ReferentialPid ) ->
+ref_frame3_to_string( Ref_FramePid ) when is_pid( Ref_FramePid ) ->
 	% Not executing a request for that:
-	text_utils:format( "3D referential ~w", [ ReferentialPid ] );
+	text_utils:format( "3D reference frame ~w", [ Ref_FramePid ] );
 
-referential3_to_string( ReferentialId ) ->
-	text_utils:format( "3D referential #~B", [ ReferentialId ] ).
+ref_frame3_to_string( Ref_FrameId ) ->
+	text_utils:format( "3D reference frame #~B", [ Ref_FrameId ] ).
 
 
 
-% @doc Returns a textual description of this referential.
+-doc "Returns a textual description of this frame of reference.".
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 
 	ParentStr = case ?getAttr(parent) of
 
 		undefined ->
-			"absolute 3D referential";
+			"absolute 3D reference frame";
 
 		AnyParentRef ->
-			text_utils:format( "3D referential whose parent one is ~ts",
-							   [ referential3_to_string( AnyParentRef ) ] )
+			text_utils:format( "3D reference frame whose parent one is ~ts",
+							   [ ref_frame3_to_string( AnyParentRef ) ] )
 
 	end,
 
