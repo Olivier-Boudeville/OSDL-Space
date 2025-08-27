@@ -1,4 +1,4 @@
-% Copyright (C) 2023-2024 Olivier Boudeville
+% Copyright (C) 2023-2025 Olivier Boudeville
 %
 % This file is part of the OSDL-Space library.
 %
@@ -457,10 +457,10 @@ gui_main_loop( AppGUIState ) ->
 
 -doc """
 The application-specific event driver for the onShown (user) event type,
-overriding default_onShown_driver/2: sets up OpenGL, once for all, now that a
+overriding `default_onShown_driver/2`: sets up OpenGL, once for all, now that a
 proper OpenGL context is available.
 
-Its type is event_driver().
+Its type is `event_driver/0`.
 
 The most suitable first location to initialise OpenGL, as making a GL context
 current requires a shown window.
@@ -607,7 +607,7 @@ ctrl_onRepaintNeeded_driver( _Elements=[ GLCanvas, _GLCanvasId, _EventContext ],
 -doc """
 The controller-specific event driver for the onResized (user) event type.
 
-Its type is event_driver().
+Its type is `event_driver/0`.
 """.
 -spec ctrl_onResized_driver( event_elements(), app_gui_state() ) ->
 											app_event_return().
@@ -667,7 +667,6 @@ Defined as a separate function, as to be called from two contexts: when the main
 frame is shown and when a resizing is needed.
 
 OpenGL context expected here to have already been set.
-
 """.
 -spec on_main_frame_resized( app_gui_state() ) -> app_gui_state().
 on_main_frame_resized( GUIState=#app_gui_state{
