@@ -35,7 +35,7 @@ See also Myriad's `reference_frame` module, used internally here.
 
 
 -define( class_description,
-		 "Lightweight base class for frames of reference of all sorts." ).
+         "Lightweight base class for frames of reference of all sorts." ).
 
 
 % Determines what are the direct mother classes of this class (if any):
@@ -58,15 +58,15 @@ See also Myriad's `reference_frame` module, used internally here.
 % Describes the class-specific attributes:
 -define( class_attributes, [
 
-	% Finally not defined specifically: each child class is to store such
-	% information by itself, typically in a transition matrix of its own.
-	%
-	%{ origin, point(),
-	%  "the origin of this frame of reference, expressed in its parent one, "
-	%  "if any, otherwise in absolute terms" },
+    % Finally not defined specifically: each child class is to store such
+    % information by itself, typically in a transition matrix of its own.
+    %
+    %{ origin, point(),
+    %  "the origin of this frame of reference, expressed in its parent one, "
+    %  "if any, otherwise in absolute terms" },
 
-	{ parent, option( any_ref_frame() ), "the parent frame of reference "
-	  "(if any; and of any type) of this one" } ] ).
+    { parent, option( any_ref_frame() ), "the parent frame of reference "
+      "(if any; and of any type) of this one" } ] ).
 
 
 
@@ -96,12 +96,12 @@ integer, referring (as a key) to an (implicit) table of reference frames.
 
 -doc "Any type of reference onto a reference frame.".
 -type any_ref_frame() :: ref_frame()
-					   | ref_frame_pid()
-					   | ref_frame_id().
+                       | ref_frame_pid()
+                       | ref_frame_id().
 
 
 -export_type([ ref_frame/0, ref_frame_pid/0, ref_frame_id/0,
-			   any_ref_frame/0 ]).
+               any_ref_frame/0 ]).
 
 
 
@@ -133,7 +133,7 @@ integer, referring (as a key) to an (implicit) table of reference frames.
 Constructs a blank reference frame, with no parent defined.
 """.
 construct( State ) ->
-	setAttribute( State, parent, undefined ).
+    setAttribute( State, parent, undefined ).
 
 
 
@@ -171,7 +171,7 @@ otherwise absolutely.
 """.
 -spec getOrigin( wooper:state() ) -> const_request_return( point() ).
 getOrigin( _State ) ->
-	throw( not_overridden ).
+    throw( not_overridden ).
 
 
 
@@ -185,7 +185,7 @@ otherwise absolutely.
 """.
 -spec setOrigin( wooper:state(), point() ) -> oneway_return().
 setOrigin( _State, _Origin ) ->
-	throw( not_overridden ).
+    throw( not_overridden ).
 
 
 
@@ -200,17 +200,17 @@ a reference frame; if yes, returns it, otherwise throws an exception.
 """.
 -spec check_ref_frame( term() ) -> static_return( any_ref_frame() ).
 check_ref_frame( RefPassivInstState=#state_holder{} ) ->
-	wooper:return_static(
-		wooper:check_instance_of( _Classname=?MODULE, RefPassivInstState ) );
+    wooper:return_static(
+        wooper:check_instance_of( _Classname=?MODULE, RefPassivInstState ) );
 
 check_ref_frame( RefPid ) when is_pid( RefPid ) ->
-	wooper:return_static( RefPid );
+    wooper:return_static( RefPid );
 
 check_ref_frame( RefId ) when is_integer( RefId ) ->
-	wooper:return_static( RefId );
+    wooper:return_static( RefId );
 
 check_ref_frame( Other ) ->
-	throw( { invalid_ref_frame, Other } ).
+    throw( { invalid_ref_frame, Other } ).
 
 
 
@@ -220,10 +220,10 @@ a maybe-reference frame; if yes, returns it, otherwise throws an exception.
 """.
 -spec check_maybe_ref_frame( term() ) -> static_return( any_ref_frame() ).
 check_maybe_ref_frame( MaybeRef=undefined ) ->
-	wooper:return_static( MaybeRef );
+    wooper:return_static( MaybeRef );
 
 check_maybe_ref_frame( Ref ) ->
-	wooper:return_static( check_ref_frame( Ref ) ).
+    wooper:return_static( check_ref_frame( Ref ) ).
 
 
 
@@ -232,14 +232,14 @@ Returns a textual description of the specified reference frame of any type.
 """.
 -spec ref_frame_to_string( any_ref_frame() ) -> ustring().
 ref_frame_to_string( PassiveRefFrame=#state_holder{} ) ->
-	wooper:execute_const_request( PassiveRefFrame, toString );
+    wooper:execute_const_request( PassiveRefFrame, toString );
 
 ref_frame_to_string( RefFramePid ) when is_pid( RefFramePid ) ->
-	% Not executing a request for that:
-	text_utils:format( "reference frame ~w", [ RefFramePid ] );
+    % Not executing a request for that:
+    text_utils:format( "reference frame ~w", [ RefFramePid ] );
 
 ref_frame_to_string( RefFrameId ) ->
-	text_utils:format( "reference frame #~B", [ RefFrameId ] ).
+    text_utils:format( "reference frame #~B", [ RefFrameId ] ).
 
 
 
@@ -247,16 +247,16 @@ ref_frame_to_string( RefFrameId ) ->
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 
-	ParentStr = case ?getAttr(parent) of
+    ParentStr = case ?getAttr(parent) of
 
-		undefined ->
-			"absolute reference frame";
+        undefined ->
+            "absolute reference frame";
 
-		AnyParentRef ->
-			text_utils:format( "reference frame whose parent one is ~ts",
-							   [ ref_frame_to_string( AnyParentRef ) ] )
+        AnyParentRef ->
+            text_utils:format( "reference frame whose parent one is ~ts",
+                               [ ref_frame_to_string( AnyParentRef ) ] )
 
-	end,
+    end,
 
-	text_utils:format( "~ts whose origin is ~ts",
-					   [ ParentStr, point:to_string( ?getAttr(origin) ) ] ).
+    text_utils:format( "~ts whose origin is ~ts",
+                       [ ParentStr, point:to_string( ?getAttr(origin) ) ] ).

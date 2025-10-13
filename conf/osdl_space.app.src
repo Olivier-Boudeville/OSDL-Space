@@ -48,7 +48,7 @@
   {mod, {osdl_space_app, []}},
 
   {links, [ {"Official website", "http://osdl-space.esperide.org" },
-			{"Github", "https://github.com/Olivier-Boudeville/OSDL-Space"} ]}
+            {"Github", "https://github.com/Olivier-Boudeville/OSDL-Space"} ]}
 
   %{exclude_files, []}
 
